@@ -72,7 +72,7 @@ func handle(client net.Conn) {
 	defer req.Body.Close()
 
 	host := req.Host
-	fmt.Println("HOST is %s", host)
+	fmt.Printf("HOST is %s\n", host)
 	if _, port, _ := net.SplitHostPort(host); port == "" {
 		host = net.JoinHostPort(host, "80")
 	}
