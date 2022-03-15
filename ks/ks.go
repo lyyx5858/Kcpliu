@@ -26,7 +26,8 @@ var i int
 func main() {
 	var port string = "7777"
 
-	li, err := net.Listen("tcp", ":"+port)
+	laddr, err := net.ResolveTCPAddr("tcp", ":7777")
+	li, err := net.ListenTCP("tcp", laddr)
 	//li, err := kcp.ListenWithOptions(":7777", nil, 10, 3)
 
 	if err != nil {
@@ -39,7 +40,7 @@ func main() {
 
 	var tempDelay time.Duration
 	for {
-		client, err := li.Accept() //此处阻塞
+		client, err := li.AcceptTCP() //此处阻塞
 		if err != nil {
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
 				if tempDelay == 0 {

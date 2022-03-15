@@ -25,7 +25,8 @@ var i int
 func main() {
 	var port string = "8080"
 
-	li, err := net.Listen("tcp", ":"+port)
+	laddr, err := net.ResolveTCPAddr("tcp", ":8080")
+	li, err := net.ListenTCP("tcp", laddr)
 	if err != nil {
 		log.Println("error listen ", err)
 		return
@@ -36,7 +37,7 @@ func main() {
 
 	var tempDelay time.Duration
 	for {
-		client, err := li.Accept() //此处阻塞
+		client, err := li.AcceptTCP() //此处阻塞
 		if err != nil {
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
 				if tempDelay == 0 {
@@ -81,14 +82,15 @@ func handle(client net.Conn) {
 
 	retry := 3
 
+	raddr, err := net.ResolveTCPAddr("tcp", ":7777")
 	for i := 0; i < retry; i++ {
-		server, err = net.Dial("tcp", ":7777")
+
+		server, err = net.DialTCP("tcp", nil, raddr)
 
 		if err != nil {
 			log.Println("2:Dial err:", err)
 			time.Sleep(10 * time.Millisecond)
 		} else {
-			server.SetDeadline(time.Now().Add(60 * time.Second))
 			break
 		}
 
