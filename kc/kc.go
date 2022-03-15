@@ -83,11 +83,12 @@ func handle(client net.Conn) {
 
 	for i := 0; i < retry; i++ {
 		server, err = net.Dial("tcp", ":7777")
-		//server, err = kcp.DialWithOptions("0.0.0.0:7777", nil, 10, 3)
+
 		if err != nil {
 			log.Println("2:Dial err:", err)
 			time.Sleep(10 * time.Millisecond)
 		} else {
+			server.SetDeadline(time.Now().Add(60 * time.Second))
 			break
 		}
 
@@ -110,7 +111,9 @@ func handle(client net.Conn) {
 
 	defer server.Close()
 
-	if err = req.Write(server); err != nil { //将client发来的请求，指向服务器
+	err = req.Write(server) //将client发来的请求，指向服务器
+
+	if err != nil {
 		log.Printf("4:[http] %s -> %s : %s\n", client.RemoteAddr(), client.LocalAddr(), err)
 		return
 	}

@@ -56,6 +56,7 @@ func main() {
 			}
 			return
 		}
+		client.SetDeadline(time.Now().Add(60 * time.Second))
 		tempDelay = 0
 
 		go handle(client)
