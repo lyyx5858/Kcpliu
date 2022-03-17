@@ -137,9 +137,10 @@ func (tr *kcpTransporter) Dial(addr string) (conn net.Conn, err error) {
 	tr.sessionMutex.Lock()
 	defer tr.sessionMutex.Unlock()
 
-	session, ok := tr.sessions["127.0.0.1:7777"]
+	//s2 type is *muxSession
+	s2, ok := tr.sessions["127.0.0.1:7777"]
 
-	if !ok || session.session == nil {
+	if !ok || s2.session == nil {
 		kcpconn, err := kcp.DialWithOptions("127.0.0.1:7777", nil, 10, 3)
 		if err != nil {
 			log.Println("error kcpconn ", err)
@@ -147,20 +148,23 @@ func (tr *kcpTransporter) Dial(addr string) (conn net.Conn, err error) {
 			return
 		}
 
-		s0, err := smux.Client(kcpconn, nil)
-		s := &muxSession{conn, s0}
+		mc, err := smux.Client(kcpconn, nil)
+		s := &muxSession{conn, mc}
 		if err != nil {
 			log.Println("error sumx.Clent ", err)
 			return
 		}
-		session = s
-		tr.sessions["127.0.0.1:7777"] = session
+
+		tr.sessions["127.0.0.1:7777"] = s
+		fmt.Println("+++++++++")
 	}
 
-	stream, err := session.session.OpenStream()
+	stream, err := s2.session.OpenStream()
 	if err != nil {
+		s2.session.Close()
+		delete(tr.sessions, "127.0.0.1:7777")
 		log.Println("error OpenStream ", err)
-		return
+		return nil, err
 	}
 
 	return stream, err
