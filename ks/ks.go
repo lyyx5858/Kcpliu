@@ -2,10 +2,10 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"github.com/xtaci/kcp-go/v5"
 	"github.com/xtaci/smux"
-
 	// "github.com/xtaci/kcp-go/v5"
 	"io"
 	"log"
@@ -26,42 +26,102 @@ var (
 
 var i int
 
+type kcpListener struct {
+	ln       *kcp.Listener
+	connChan chan net.Conn
+	errChan  chan error
+}
+
 func main() {
-	var port string = "7777"
 
-	li, err := kcp.ListenWithOptions(":7777", nil, 10, 3)
-
+	ln, err := kcp.ListenWithOptions(":7777", nil, 10, 3)
 	if err != nil {
 		log.Println("error listen ", err)
 		return
 	}
-	defer li.Close()
+	defer ln.Close()
 
-	log.Println("开启监听端口 " + port)
+	l := &kcpListener{
+		ln:       ln,
+		connChan: make(chan net.Conn, 1024),
+		errChan:  make(chan error, 1),
+	}
 
+	go l.listenLoop()
+
+	log.Println("开启监听端口 " + "7777")
+	var tempDelay time.Duration
 	for {
-		fmt.Println("for start 1")
-		conn, err := li.AcceptKCP() //此处阻塞
+		client, e := l.Accept()
+		if e != nil {
+			if ne, ok := e.(net.Error); ok && ne.Temporary() {
+				if tempDelay == 0 {
+					tempDelay = 5 * time.Millisecond
+				} else {
+					tempDelay *= 2
+				}
+				if max := 1 * time.Second; tempDelay > max {
+					tempDelay = max
+				}
+				log.Println("server: Accept error: %v; retrying in %v", e, tempDelay)
+				time.Sleep(tempDelay)
+				continue
+			}
+			return
+		}
+		tempDelay = 0
+		go handle(client)
+	}
+
+}
+
+func (l *kcpListener) Accept() (conn net.Conn, err error) {
+	var ok bool
+	select {
+	case conn = <-l.connChan:
+	case err, ok = <-l.errChan:
+		if !ok {
+			err = errors.New("accpet on closed listener")
+		}
+	}
+	return
+}
+
+func (l *kcpListener) listenLoop() {
+	for {
+		conn, err := l.ln.AcceptKCP() //此处阻塞
 		if err != nil {
 			log.Println("error Accept ", err)
 			return
 		}
-		fmt.Println("for start 2")
-		mux, err := smux.Server(conn, nil)
-		if err != nil {
-			log.Println("error Smux.Server ", err)
-			return
-		}
 
+		go l.mux(conn)
+
+	}
+}
+
+func (l *kcpListener) mux(conn net.Conn) {
+	mux, err := smux.Server(conn, nil)
+	if err != nil {
+		log.Println("[kcp]", err)
+		return
+	}
+	defer mux.Close()
+
+	for {
 		client, err := mux.AcceptStream()
 		if err != nil {
 			log.Println("error AcceptStream ", err)
 			return
 		}
-
-		go handle(client)
-
+		select {
+		case l.connChan <- client:
+		default:
+			client.Close()
+			log.Println("full")
+		}
 	}
+
 }
 
 func handle(client net.Conn) {
