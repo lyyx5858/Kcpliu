@@ -38,6 +38,7 @@ func main() {
 	log.Println("开启监听端口 " + port)
 
 	var tempDelay time.Duration
+
 	for {
 		client, err := li.AcceptTCP() //此处阻塞
 		if err != nil {
@@ -58,11 +59,24 @@ func main() {
 		}
 		tempDelay = 0
 
-		go handle(client)
+		kcpconn, err := kcp.DialWithOptions("127.0.0.1:7777", nil, 10, 3)
+		if err != nil {
+			log.Println("error kcpconn ", err)
+			time.Sleep(10 * time.Millisecond)
+			return
+		}
+
+		session, err := smux.Client(kcpconn, nil)
+		if err != nil {
+			log.Println("error sumx.Clent ", err)
+			return
+		}
+
+		go handle(client, session)
 	}
 }
 
-func handle(client net.Conn) {
+func handle(client net.Conn, session *smux.Session) {
 	i++
 	fmt.Println("====================i=", i, "==============================")
 	defer client.Close()
@@ -82,37 +96,15 @@ func handle(client net.Conn) {
 
 	var server net.Conn
 
-	retry := 3
+	stream, err := session.OpenStream()
+	if err != nil {
+		log.Println("error OpenStream ", err)
+		return
+	}
+	server = net.Conn(stream)
 
-	for i := 0; i < retry; i++ {
-
-		//kcpconn, err := kcp.NewConn(":7777", nil, 10, 3, c1)
-		kcpconn, err := kcp.DialWithOptions("127.0.0.1:7777", nil, 10, 3)
-
-		if err != nil {
-			log.Println("error kcpconn ", err)
-			return
-		}
-		session, err := smux.Client(kcpconn, nil)
-		if err != nil {
-			log.Println("error sumx.Clent ", err)
-			return
-		}
-
-		stream, err := session.OpenStream()
-		if err != nil {
-			log.Println("error OpenStream ", err)
-			return
-		}
-		server = net.Conn(stream)
-
-		if err != nil {
-			log.Println("2:Dial err:", err)
-			time.Sleep(10 * time.Millisecond)
-		} else {
-			break
-		}
-
+	if err != nil {
+		log.Println("2:Dial err:", err)
 	}
 
 	defer server.Close()
