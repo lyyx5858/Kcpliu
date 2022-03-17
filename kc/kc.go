@@ -137,32 +137,43 @@ func (tr *kcpTransporter) Dial(addr string) (conn net.Conn, err error) {
 	tr.sessionMutex.Lock()
 	defer tr.sessionMutex.Unlock()
 
+	conn.SetDeadline(time.Now().Add(1 * time.Second))
+	defer conn.SetDeadline(time.Time{})
+
+	var radd string = "127.0.0.1:7777"
+
 	//s2 type is *muxSession
-	s2, ok := tr.sessions["127.0.0.1:7777"]
+	s2, ok := tr.sessions[radd]
 
 	if !ok || s2.session == nil {
-		kcpconn, err := kcp.DialWithOptions("127.0.0.1:7777", nil, 10, 3)
+		kcpconn, err := kcp.DialWithOptions(radd, nil, 10, 3)
 		if err != nil {
 			log.Println("error kcpconn ", err)
-			time.Sleep(10 * time.Millisecond)
-			return
+			return nil, err
 		}
+
+		kcpconn.SetStreamMode(true)
+		kcpconn.SetWriteDelay(false)
 
 		mc, err := smux.Client(kcpconn, nil)
-		s := &muxSession{conn, mc}
+
 		if err != nil {
 			log.Println("error sumx.Clent ", err)
-			return
+			conn.Close()
+			delete(tr.sessions, radd)
+			return nil, err
 		}
 
-		tr.sessions["127.0.0.1:7777"] = s
+		s := &muxSession{conn, mc}
+
+		tr.sessions[radd] = s
 		fmt.Println("+++++++++")
 	}
 
 	stream, err := s2.session.OpenStream()
 	if err != nil {
 		s2.session.Close()
-		delete(tr.sessions, "127.0.0.1:7777")
+		delete(tr.sessions, radd)
 		log.Println("error OpenStream ", err)
 		return nil, err
 	}
