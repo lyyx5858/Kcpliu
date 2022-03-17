@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"github.com/xtaci/kcp-go/v5"
+	"github.com/xtaci/smux"
 	"io"
 	"log"
 	"net"
@@ -82,10 +84,27 @@ func handle(client net.Conn) {
 
 	retry := 3
 
-	raddr, err := net.ResolveTCPAddr("tcp", ":7777")
 	for i := 0; i < retry; i++ {
 
-		server, err = net.DialTCP("tcp", nil, raddr)
+		//kcpconn, err := kcp.NewConn(":7777", nil, 10, 3, c1)
+		kcpconn, err := kcp.DialWithOptions("127.0.0.1:7777", nil, 10, 3)
+
+		if err != nil {
+			log.Println("error kcpconn ", err)
+			return
+		}
+		session, err := smux.Client(kcpconn, nil)
+		if err != nil {
+			log.Println("error sumx.Clent ", err)
+			return
+		}
+
+		stream, err := session.OpenStream()
+		if err != nil {
+			log.Println("error OpenStream ", err)
+			return
+		}
+		server = net.Conn(stream)
 
 		if err != nil {
 			log.Println("2:Dial err:", err)
@@ -95,6 +114,8 @@ func handle(client net.Conn) {
 		}
 
 	}
+
+	defer server.Close()
 
 	//如果尝试了retry次后，还是不成功，要向客户方写resp，说明不成功原因,然后返回。
 	resp := &http.Response{
@@ -110,8 +131,6 @@ func handle(client net.Conn) {
 		return
 
 	}
-
-	defer server.Close()
 
 	err = req.Write(server) //将client发来的请求，指向服务器
 

@@ -2,7 +2,10 @@ module kcpliu
 
 go 1.17
 
-require github.com/xtaci/kcp-go/v5 v5.6.1
+require (
+	github.com/xtaci/kcp-go/v5 v5.6.1
+	github.com/xtaci/smux v1.5.16
+)
 
 require (
 	github.com/klauspost/cpuid v1.3.1 // indirect

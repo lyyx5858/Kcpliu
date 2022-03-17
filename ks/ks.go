@@ -3,6 +3,9 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"github.com/xtaci/kcp-go/v5"
+	"github.com/xtaci/smux"
+
 	// "github.com/xtaci/kcp-go/v5"
 	"io"
 	"log"
@@ -26,9 +29,7 @@ var i int
 func main() {
 	var port string = "7777"
 
-	laddr, err := net.ResolveTCPAddr("tcp", ":7777")
-	li, err := net.ListenTCP("tcp", laddr)
-	//li, err := kcp.ListenWithOptions(":7777", nil, 10, 3)
+	li, err := kcp.ListenWithOptions(":7777", nil, 10, 3)
 
 	if err != nil {
 		log.Println("error listen ", err)
@@ -38,29 +39,28 @@ func main() {
 
 	log.Println("开启监听端口 " + port)
 
-	var tempDelay time.Duration
 	for {
-		client, err := li.AcceptTCP() //此处阻塞
+		fmt.Println("for start 1")
+		conn, err := li.AcceptKCP() //此处阻塞
 		if err != nil {
-			if ne, ok := err.(net.Error); ok && ne.Temporary() {
-				if tempDelay == 0 {
-					tempDelay = 5 * time.Millisecond
-				} else {
-					tempDelay *= 2
-				}
-				if max := 1 * time.Second; tempDelay > max {
-					tempDelay = max
-				}
-				log.Printf("server: Accept error: %v; retrying in %v\n", err, tempDelay)
-				time.Sleep(tempDelay)
-				continue
-			}
+			log.Println("error Accept ", err)
 			return
 		}
-		client.SetDeadline(time.Now().Add(60 * time.Second))
-		tempDelay = 0
+		fmt.Println("for start 2")
+		mux, err := smux.Server(conn, nil)
+		if err != nil {
+			log.Println("error Smux.Server ", err)
+			return
+		}
+
+		client, err := mux.AcceptStream()
+		if err != nil {
+			log.Println("error AcceptStream ", err)
+			return
+		}
 
 		go handle(client)
+
 	}
 }
 
