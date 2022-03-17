@@ -96,7 +96,10 @@ func handle(client net.Conn, tr *kcpTransporter) {
 		host = net.JoinHostPort(host, "80")
 	}
 
-	server, _ := tr.Dial(host)
+	server, err := tr.Dial(host)
+	if err != nil {
+		log.Println("Dial err:", err)
+	}
 	defer server.Close()
 
 	//如果尝试了retry次后，还是不成功，要向客户方写resp，说明不成功原因,然后返回。
@@ -137,9 +140,6 @@ func (tr *kcpTransporter) Dial(addr string) (conn net.Conn, err error) {
 	tr.sessionMutex.Lock()
 	defer tr.sessionMutex.Unlock()
 
-	conn.SetDeadline(time.Now().Add(1 * time.Second))
-	defer conn.SetDeadline(time.Time{})
-
 	var radd string = "127.0.0.1:7777"
 
 	//s2 type is *muxSession
@@ -159,12 +159,11 @@ func (tr *kcpTransporter) Dial(addr string) (conn net.Conn, err error) {
 
 		if err != nil {
 			log.Println("error sumx.Clent ", err)
-			conn.Close()
 			delete(tr.sessions, radd)
 			return nil, err
 		}
 
-		s := &muxSession{conn, mc}
+		s := &muxSession{kcpconn, mc}
 
 		tr.sessions[radd] = s
 		fmt.Println("+++++++++")
