@@ -163,9 +163,9 @@ func (tr *kcpTransporter) Dial(addr string) (conn net.Conn, err error) {
 			return nil, err
 		}
 
-		s := &muxSession{kcpconn, mc}
+		s2 = &muxSession{kcpconn, mc}
 
-		tr.sessions[radd] = s
+		tr.sessions[radd] = s2
 		fmt.Println("+++++++++")
 	}
 
@@ -177,7 +177,7 @@ func (tr *kcpTransporter) Dial(addr string) (conn net.Conn, err error) {
 		return nil, err
 	}
 
-	return stream, err
+	return stream, nil
 }
 
 func transport(rw1, rw2 io.ReadWriter) error {
