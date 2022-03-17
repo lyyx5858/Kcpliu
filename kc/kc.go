@@ -24,6 +24,16 @@ var (
 
 var i int
 
+type muxSession struct {
+	conn    net.Conn
+	session *smux.Session
+}
+
+type kcpTransporter struct {
+	sessions     map[string]*muxSession
+	sessionMutex sync.Mutex
+}
+
 func main() {
 	var port string = "8080"
 
@@ -38,6 +48,10 @@ func main() {
 	log.Println("开启监听端口 " + port)
 
 	var tempDelay time.Duration
+
+	tr := &kcpTransporter{
+		sessions: make(map[string]*muxSession),
+	}
 
 	for {
 		client, err := li.AcceptTCP() //此处阻塞
@@ -59,24 +73,12 @@ func main() {
 		}
 		tempDelay = 0
 
-		kcpconn, err := kcp.DialWithOptions("127.0.0.1:7777", nil, 10, 3)
-		if err != nil {
-			log.Println("error kcpconn ", err)
-			time.Sleep(10 * time.Millisecond)
-			return
-		}
+		go handle(client, tr)
 
-		session, err := smux.Client(kcpconn, nil)
-		if err != nil {
-			log.Println("error sumx.Clent ", err)
-			return
-		}
-
-		go handle(client, session)
 	}
 }
 
-func handle(client net.Conn, session *smux.Session) {
+func handle(client net.Conn, tr *kcpTransporter) {
 	i++
 	fmt.Println("====================i=", i, "==============================")
 	defer client.Close()
@@ -94,19 +96,7 @@ func handle(client net.Conn, session *smux.Session) {
 		host = net.JoinHostPort(host, "80")
 	}
 
-	var server net.Conn
-
-	stream, err := session.OpenStream()
-	if err != nil {
-		log.Println("error OpenStream ", err)
-		return
-	}
-	server = net.Conn(stream)
-
-	if err != nil {
-		log.Println("2:Dial err:", err)
-	}
-
+	server, _ := tr.Dial(host)
 	defer server.Close()
 
 	//如果尝试了retry次后，还是不成功，要向客户方写resp，说明不成功原因,然后返回。
@@ -140,6 +130,40 @@ func handle(client net.Conn, session *smux.Session) {
 
 	fmt.Printf("[http] %s >-< %s\n", client.RemoteAddr(), host)
 
+}
+
+func (tr *kcpTransporter) Dial(addr string) (conn net.Conn, err error) {
+
+	tr.sessionMutex.Lock()
+	defer tr.sessionMutex.Unlock()
+
+	session, ok := tr.sessions["127.0.0.1:7777"]
+
+	if !ok || session.session == nil {
+		kcpconn, err := kcp.DialWithOptions("127.0.0.1:7777", nil, 10, 3)
+		if err != nil {
+			log.Println("error kcpconn ", err)
+			time.Sleep(10 * time.Millisecond)
+			return
+		}
+
+		s0, err := smux.Client(kcpconn, nil)
+		s := &muxSession{conn, s0}
+		if err != nil {
+			log.Println("error sumx.Clent ", err)
+			return
+		}
+		session = s
+		tr.sessions["127.0.0.1:7777"] = session
+	}
+
+	stream, err := session.session.OpenStream()
+	if err != nil {
+		log.Println("error OpenStream ", err)
+		return
+	}
+
+	return stream, err
 }
 
 func transport(rw1, rw2 io.ReadWriter) error {
