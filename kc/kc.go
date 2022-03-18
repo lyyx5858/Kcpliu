@@ -30,6 +30,7 @@ func main() {
 
 	var tempDelay time.Duration
 
+	//初始化tr实例
 	tr := &kcpTransporter{
 		sessions: make(map[string]*muxSession),
 	}
@@ -133,7 +134,7 @@ func (tr *kcpTransporter) Dial(addr string) (conn net.Conn, err error) {
 
 	var radd string = "127.0.0.1:7777"
 
-	//s2 type is *muxSession
+	//查看是否已有对应的session,如果没有，开妈拨号新建
 	s2, ok := tr.sessions[radd]
 
 	if !ok || s2.session == nil {
@@ -147,14 +148,16 @@ func (tr *kcpTransporter) Dial(addr string) (conn net.Conn, err error) {
 		kcpconn.SetWriteDelay(false)
 
 		mc, err := smux.Client(kcpconn, nil)
-
 		if err != nil {
 			log.Println("error sumx.Clent ", err)
 			delete(tr.sessions, radd)
 			return nil, err
 		}
 
-		s2 = &muxSession{kcpconn, mc}
+		s2 = &muxSession{
+			kcpconn,
+			mc,
+		}
 
 		tr.sessions[radd] = s2
 		fmt.Println("+++++++++")
