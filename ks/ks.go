@@ -75,23 +75,13 @@ func main() {
 
 }
 
-func (l *kcpListener) Accept() (conn net.Conn, err error) {
-	var ok bool
-	select {
-	case conn = <-l.connChan:
-	case err, ok = <-l.errChan:
-		if !ok {
-			err = errors.New("accpet on closed listener")
-		}
-	}
-	return
-}
-
 func (l *kcpListener) listenLoop() {
 	for {
 		conn, err := l.ln.AcceptKCP() //此处阻塞
 		if err != nil {
 			log.Println("error Accept ", err)
+			l.errChan <- err
+			close(l.errChan)
 			return
 		}
 
@@ -109,19 +99,31 @@ func (l *kcpListener) mux(conn net.Conn) {
 	defer mux.Close()
 
 	for {
-		client, err := mux.AcceptStream()
+		stream, err := mux.AcceptStream()
 		if err != nil {
 			log.Println("error AcceptStream ", err)
 			return
 		}
 		select {
-		case l.connChan <- client:
+		case l.connChan <- stream:
 		default:
-			client.Close()
+			stream.Close()
 			log.Println("full")
 		}
 	}
 
+}
+
+func (l *kcpListener) Accept() (conn net.Conn, err error) {
+	var ok bool
+	select {
+	case conn = <-l.connChan:
+	case err, ok = <-l.errChan:
+		if !ok {
+			err = errors.New("accpet on closed listener")
+		}
+	}
+	return
 }
 
 func handle(client net.Conn) {

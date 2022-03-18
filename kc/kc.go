@@ -13,26 +13,7 @@ import (
 	"time"
 )
 
-var (
-	lPool = sync.Pool{
-		New: func() interface{} {
-			p := make([]byte, 16*1024)
-			return &p
-		},
-	}
-)
-
 var i int
-
-type muxSession struct {
-	conn    net.Conn
-	session *smux.Session
-}
-
-type kcpTransporter struct {
-	sessions     map[string]*muxSession
-	sessionMutex sync.Mutex
-}
 
 func main() {
 	var port string = "8080"
@@ -135,6 +116,16 @@ func handle(client net.Conn, tr *kcpTransporter) {
 
 }
 
+type kcpTransporter struct {
+	sessions     map[string]*muxSession
+	sessionMutex sync.Mutex
+}
+
+type muxSession struct {
+	conn    net.Conn
+	session *smux.Session
+}
+
 func (tr *kcpTransporter) Dial(addr string) (conn net.Conn, err error) {
 
 	tr.sessionMutex.Lock()
@@ -206,3 +197,12 @@ func copyBuffer(dst io.Writer, src io.Reader) error {
 	_, err := io.CopyBuffer(dst, src, *buf)
 	return err
 }
+
+var (
+	lPool = sync.Pool{
+		New: func() interface{} {
+			p := make([]byte, 16*1024)
+			return &p
+		},
+	}
+)
