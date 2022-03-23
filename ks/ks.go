@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/xtaci/kcp-go/v5"
 	"github.com/xtaci/smux"
-	// "github.com/xtaci/kcp-go/v5"
 	"io"
 	"log"
 	"net"
@@ -70,7 +69,8 @@ func main() {
 			return
 		}
 		tempDelay = 0
-		go handle(client)
+		//go handle(client)
+		go echo(client)
 	}
 
 }
@@ -91,7 +91,9 @@ func (l *kcpListener) listenLoop() {
 }
 
 func (l *kcpListener) mux(conn net.Conn) {
-	mux, err := smux.Server(conn, nil)
+	smuxConfig := smux.DefaultConfig()
+	smuxConfig.Version = 2
+	mux, err := smux.Server(conn, smuxConfig)
 	if err != nil {
 		log.Println("[kcp]", err)
 		return
@@ -228,4 +230,20 @@ func copyBuffer(dst io.Writer, src io.Reader) error {
 
 	_, err := io.CopyBuffer(dst, src, *buf)
 	return err
+}
+
+func echo(client net.Conn) {
+	i++
+	fmt.Println("====================i=", i, "==============================")
+	defer client.Close()
+
+	req, err := http.ReadRequest(bufio.NewReader(client))
+	if err != nil {
+		//log.Println("(1):req read err:", err)
+		return
+	}
+	defer req.Body.Close()
+
+	transport(client, client)
+
 }

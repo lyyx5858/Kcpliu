@@ -137,6 +137,12 @@ func (tr *kcpTransporter) Dial(addr string) (conn net.Conn, err error) {
 	//查看是否已有对应的session,如果没有，开妈拨号新建
 	s2, ok := tr.sessions[radd]
 
+	if s2 != nil && s2.session != nil && s2.session.IsClosed() {
+		s2.session.Close()
+		delete(tr.sessions, addr) // session is dead
+		ok = false
+	}
+
 	if !ok || s2.session == nil {
 		kcpconn, err := kcp.DialWithOptions(radd, nil, 10, 3)
 		if err != nil {
@@ -147,7 +153,9 @@ func (tr *kcpTransporter) Dial(addr string) (conn net.Conn, err error) {
 		kcpconn.SetStreamMode(true)
 		kcpconn.SetWriteDelay(false)
 
-		mc, err := smux.Client(kcpconn, nil)
+		smuxConfig := smux.DefaultConfig()
+		smuxConfig.Version = 2
+		mc, err := smux.Client(kcpconn, smuxConfig)
 		if err != nil {
 			log.Println("error sumx.Clent ", err)
 			delete(tr.sessions, radd)
