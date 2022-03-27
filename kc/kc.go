@@ -168,7 +168,7 @@ func (tr *kcpTransporter) Dial(addr string) (conn net.Conn, err error) {
 		}
 
 		tr.sessions[radd] = s2
-		fmt.Println("+++++++++")
+		fmt.Println("\n+++++++++")
 	}
 
 	stream, err := s2.session.OpenStream()
