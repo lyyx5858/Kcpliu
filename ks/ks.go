@@ -2,14 +2,17 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"github.com/xtaci/kcp-go/v5"
 	"github.com/xtaci/smux"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"time"
 )
@@ -33,6 +36,20 @@ type kcpListener struct {
 
 func main() {
 
+	lis, err := net.Listen("tcp", "127.0.0.1:9999")
+	if err != nil {
+		log.Println(err)
+	}
+	ts := httptest.NewUnstartedServer(httpTestHandler)
+	ts.Listener.Close()
+	ts.Listener = lis
+
+	ts.Start()
+
+	defer ts.Close()
+	defer lis.Close()
+
+	//=================
 	ln, err := kcp.ListenWithOptions(":7777", nil, 10, 3)
 	if err != nil {
 		log.Println("error listen ", err)
@@ -69,8 +86,7 @@ func main() {
 			return
 		}
 		tempDelay = 0
-		//go handle(client)
-		go echo(client)
+		go handle(client)
 	}
 
 }
@@ -232,18 +248,12 @@ func copyBuffer(dst io.Writer, src io.Reader) error {
 	return err
 }
 
-func echo(client net.Conn) {
-	i++
-	fmt.Println("====================i=", i, "==============================")
-	defer client.Close()
-
-	req, err := http.ReadRequest(bufio.NewReader(client))
-	if err != nil {
-		//log.Println("(1):req read err:", err)
-		return
-	}
-	defer req.Body.Close()
-
-	transport(client, client)
-
-}
+var (
+	httpTestHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, _ := ioutil.ReadAll(r.Body)
+		if len(data) == 0 {
+			data = []byte("Hello World!")
+		}
+		io.Copy(w, bytes.NewReader(data))
+	})
+)
